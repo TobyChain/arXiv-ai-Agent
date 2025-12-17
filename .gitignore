@@ -52,3 +52,6 @@ Thumbs.db
 
 # Git
 .git/
+
+# markdown
+Markdown/*.md
