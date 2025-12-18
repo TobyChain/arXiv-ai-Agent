@@ -39,11 +39,11 @@ new Vue({
             try {
                 let response;
                 try {
-                    response = await axios.get('/api/dates');
+                    response = await axios.get('api/dates');
                     this.availableDates = response.data;
                 } catch (e) {
-                    console.log('API /api/dates failed, trying static file...');
-                    response = await axios.get('/database/index.json');
+                    console.log('API api/dates failed, trying static file...');
+                    response = await axios.get('database/index.json');
                     this.availableDates = response.data;
                 }
 
@@ -58,7 +58,7 @@ new Vue({
         },
         async loadAllSubjects() {
             try {
-                const response = await axios.get('/api/subjects/all');
+                const response = await axios.get('api/subjects/all');
                 this.allSubjects = response.data;
             } catch (err) {
                 console.error('Failed to load subjects:', err);
@@ -74,10 +74,10 @@ new Vue({
 
             try {
                 try {
-                    const response = await axios.get(`/api/report?date=${this.selectedDate}`);
+                    const response = await axios.get(`api/report?date=${this.selectedDate}`);
                     this.papers = response.data;
                 } catch (e) {
-                    const response = await axios.get(`/database/${this.selectedDate}.json`);
+                    const response = await axios.get(`database/${this.selectedDate}.json`);
                     this.papers = response.data;
                 }
             } catch (err) {
@@ -116,7 +116,7 @@ new Vue({
             this.error = null;
 
             try {
-                const response = await axios.get(`/api/search`, {
+                const response = await axios.get(`api/search`, {
                     params: { query: this.searchQuery }
                 });
                 this.papers = response.data;
@@ -164,7 +164,7 @@ new Vue({
             this.fetchTaskStatus = { progress: 0, message: '正在启动任务...' };
             
             try {
-                const response = await axios.post('/api/fetch', {
+                const response = await axios.post('api/fetch', {
                     subject: this.selectedSubject.name,
                     date: this.fetchDate || null
                 });
@@ -184,7 +184,7 @@ new Vue({
             
             this.fetchPollingInterval = setInterval(async () => {
                 try {
-                    const response = await axios.get(`/api/task/${this.fetchTaskId}`);
+                    const response = await axios.get(`api/task/${this.fetchTaskId}`);
                     this.fetchTaskStatus = response.data;
                     
                     if (response.data.status === 'completed') {
@@ -209,7 +209,7 @@ new Vue({
             
             this.loading = true;
             try {
-                const response = await axios.get(`/database/${this.fetchTaskStatus.result_file}`);
+                const response = await axios.get(`database/${this.fetchTaskStatus.result_file}`);
                 this.papers = response.data;
                 this.manualMode = false; // 关闭手动模式，显示结果
             } catch (err) {
