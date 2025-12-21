@@ -192,30 +192,15 @@
                         </span>
                     </div>
                     
-                    <!-- Authors & Affiliation -->
-                    <div class="mb-4 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <div>
-                                <span class="font-semibold text-gray-700">第一作者:</span>
-                                <span class="text-gray-900">{{ paper.first_author || (paper.authors && paper.authors[0]) || 'Unknown' }}</span>
-                            </div>
-                            <div>
-                                <span class="font-semibold text-gray-700">通讯作者:</span>
-                                <span class="text-gray-900">{{ paper.first_author || 'Unknown' }} (推测)</span>
-                            </div>
-                            <div class="md:col-span-2">
-                                <span class="font-semibold text-gray-700">作者列表:</span>
-                                <span class="italic text-gray-500">{{ Array.isArray(paper.authors) ? paper.authors.join(', ') : paper.authors }}</span>
-                            </div>
-                            <div class="md:col-span-2">
-                                <span class="font-semibold text-gray-700">单位:</span>
-                                <span class="text-gray-500">{{ paper.affiliation || 'ArXiv Metadata 不包含单位信息' }}</span>
-                            </div>
-                        </div>
+                    <!-- Keywords -->
+                    <div class="flex flex-wrap gap-2 mb-4">
+                        <span v-for="kw in paper.keywords" :key="kw" class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                            #{{ kw }}
+                        </span>
                     </div>
 
-                    <!-- Links -->
-                    <div class="flex gap-3 mb-6">
+                    <!-- Links & Badges -->
+                    <div class="flex flex-wrap gap-3 mb-6">
                         <a :href="paper.pdf_url" target="_blank" 
                            class="inline-flex items-center px-3 py-1.5 rounded-md bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 transition-colors border border-red-100">
                             <i class="fas fa-file-pdf mr-2"></i> PDF
@@ -224,6 +209,12 @@
                            class="inline-flex items-center px-3 py-1.5 rounded-md bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors border border-gray-200">
                             <i class="fas fa-external-link-alt mr-2"></i> Abstract
                         </a>
+                        <span v-if="paper.sub_topic" class="inline-flex items-center px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 text-sm font-medium border border-blue-100">
+                            <i class="fas fa-tag mr-2"></i> {{ paper.sub_topic }}
+                        </span>
+                        <span v-if="paper.recommendation" class="inline-flex items-center px-3 py-1.5 rounded-md bg-purple-50 text-purple-600 text-sm font-medium border border-purple-100">
+                            <i class="fas fa-star mr-2"></i> {{ paper.recommendation }}
+                        </span>
                     </div>
 
                     <!-- Abstract -->

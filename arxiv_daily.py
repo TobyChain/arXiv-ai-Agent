@@ -16,7 +16,9 @@ load_dotenv()
 # ================= 配置区域 =================
 WEB_SERVER_URL = os.getenv("WEB_SERVER_URL", "http://localhost:8000")
 ARXIV_SUBJECT = os.getenv("ARXIV_SUBJECT", "cs.AI")  # ArXiv 主题代码
-CURRENT_DATE = datetime.datetime.now()
+CURRENT_DATE = datetime.datetime.now() - datetime.timedelta(
+    days=1
+)  # 默认获取前一天的论文
 TARGET_DATE_STR = CURRENT_DATE.strftime("%a, %d %b %Y")
 MAX_PAPERS = 200
 # ===========================================
@@ -79,11 +81,12 @@ class ArxivPaperProcessor:
         )
         return bibtex
 
-    def translate_abstract(self, abstract):
+    def translate_abstract(self, title, abstract):
         """
-        调用 LLM 翻译摘要
+        调用 LLM 翻译摘要并分析
         """
-        return self.llm_client.translate_abstract(abstract, domain="AI")
+        combined_text = f"Title: {title}\nAbstract: {abstract}"
+        return self.llm_client.translate_abstract(combined_text, domain="AI")
 
 
 class HTMLReportGenerator:
@@ -126,6 +129,12 @@ class HTMLReportGenerator:
         """
 
         for item in papers_data:
+            keywords_html = "".join(
+                [
+                    f'<span class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">#{kw}</span>'
+                    for kw in item["keywords"]
+                ]
+            )
             html_content += f"""
             <article class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow duration-300">
                 <div class="p-6">
@@ -133,12 +142,11 @@ class HTMLReportGenerator:
                         <a href="{item["abs_url"]}" target="_blank">{item["title"]}</a>
                     </h2>
                     
-                    <div class="flex items-center text-sm text-gray-500 mb-4">
-                        <i class="fas fa-users mr-2"></i>
-                        <span class="italic truncate">{item["authors"]}</span>
+                    <div class="flex flex-wrap gap-2 mb-4">
+                        {keywords_html}
                     </div>
 
-                    <div class="flex gap-3 mb-6">
+                    <div class="flex flex-wrap gap-3 mb-6">
                         <a href="{item["pdf_url"]}" target="_blank" 
                            class="inline-flex items-center px-3 py-1.5 rounded-md bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 transition-colors">
                             <i class="fas fa-file-pdf mr-2"></i> PDF
@@ -147,6 +155,12 @@ class HTMLReportGenerator:
                            class="inline-flex items-center px-3 py-1.5 rounded-md bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors">
                             <i class="fas fa-external-link-alt mr-2"></i> Abstract
                         </a>
+                        <span class="inline-flex items-center px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 text-sm font-medium">
+                            <i class="fas fa-tag mr-2"></i> {item["sub_topic"]}
+                        </span>
+                        <span class="inline-flex items-center px-3 py-1.5 rounded-md bg-purple-50 text-purple-600 text-sm font-medium">
+                            <i class="fas fa-star mr-2"></i> {item["recommendation"]}
+                        </span>
                     </div>
 
                     <div class="bg-blue-50 rounded-lg p-4 mb-4 border-l-4 border-blue-500">
@@ -213,28 +227,52 @@ def main():
 
     for i, paper in enumerate(arxiv_results):
         logger.info(f"[{i + 1}/{len(arxiv_results)}] 处理: {paper.title}")
-        trans_abs = processor.translate_abstract(paper.summary)
+        analysis_json = processor.translate_abstract(paper.title, paper.summary)
+        try:
+            analysis = json.loads(analysis_json)
+        except Exception as e:
+            logger.error(f"解析 JSON 失败: {e}, 内容: {analysis_json}")
+            analysis = {
+                "trans_abs": analysis_json,
+                "keywords": ["未知", "未知", "未知"],
+                "sub_topic": "未知",
+                "recommendation": "一般推荐",
+            }
+
         bib = processor.generate_bibtex(paper)
 
-        # 获取作者信息
+        # 获取作者信息 (保留在 JSON 中供数据库使用)
         authors_list = [author.name for author in paper.authors]
-        first_author = authors_list[0] if authors_list else "Unknown"
 
         processed_papers.append(
             {
                 "title": paper.title,
                 "authors": authors_list,
-                "first_author": first_author,
                 "abs_url": paper.entry_id,
                 "pdf_url": paper.pdf_url,
-                "trans_abs": trans_abs,
+                "trans_abs": analysis.get("trans_abs", "翻译失败"),
+                "keywords": analysis.get("keywords", ["未知", "未知", "未知"]),
+                "sub_topic": analysis.get("sub_topic", "未知"),
+                "recommendation": analysis.get("recommendation", "一般推荐"),
                 "bibtex": bib,
                 "published": paper.published.strftime("%Y-%m-%d"),
                 "summary": paper.summary,
             }
         )
 
-    # 5. 保存数据
+    # 5. 排序：按推荐程度从高到低排序
+    recommendation_order = {
+        "极度推荐": 5,
+        "很推荐": 4,
+        "推荐": 3,
+        "一般推荐": 2,
+        "不推荐": 1,
+    }
+    processed_papers.sort(
+        key=lambda x: recommendation_order.get(x["recommendation"], 0), reverse=True
+    )
+
+    # 6. 保存数据
     # 确保 database 目录存在
     output_dir = os.path.join(os.path.dirname(__file__), "database")
     os.makedirs(output_dir, exist_ok=True)
@@ -271,14 +309,8 @@ def main():
     filename = f"Arxiv_Report_{TARGET_DATE_STR.replace(' ', '_').replace(',', '')}.html"
     output_path = os.path.join(output_dir, filename)
 
-    # 转换作者列表为字符串格式用于 HTML 显示
-    html_papers = []
-    for p in processed_papers:
-        p_copy = p.copy()
-        p_copy["authors"] = ", ".join(p["authors"])
-        html_papers.append(p_copy)
-
-    html_gen.generate_html(html_papers, TARGET_DATE_STR, output_path)
+    # 直接使用 processed_papers 生成 HTML (不再需要转换作者格式)
+    html_gen.generate_html(processed_papers, TARGET_DATE_STR, output_path)
 
     # 6. 发送飞书通知（使用卡片格式）
     # 构建可访问的 HTTP URL
