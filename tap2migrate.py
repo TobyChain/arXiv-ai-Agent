@@ -9,11 +9,11 @@
 用法示例：
     # 迁移历史 HTML：生成 md 并上传
     python migrate_reports_to_docx.py html --database-dir ./database --out-md-dir ./database_md \
-        --folder-token LVrTfA0lOlFRPDdKge3c1qBLn5e
+        --folder-token your_folder_token_here
 
     # 基于某一天 JSON 生成 Markdown 并上传
     python migrate_reports_to_docx.py json --json-file ./database/2025-12-20.json --date 2025-12-20 \
-        --out-md ./database_md/2025-12-20.md --folder-token LVrTfA0lOlFRPDdKge3c1qBLn5e
+        --out-md ./database_md/2025-12-20.md --folder-token your_folder_token_here
 
 环境变量：
     FEISHU_APP_ID / FEISHU_APP_SECRET 必填

@@ -26,7 +26,8 @@ arXiv-ai-Agent/
 ├── feishu_drive_upload.py # Drive upload_all 上传封装
 ├── md_report.py          # 论文列表 -> Markdown 渲染
 ├── database/             # 数据存储
-├── .env                  # 环境变量（不提交）
+├── .env.example          # 环境变量示例文件
+├── .env                  # 环境变量（不提交，需手动创建）
 └── README.md
 ```
 
@@ -34,31 +35,18 @@ arXiv-ai-Agent/
 
 ### 1. 环境配置
 
-创建 `.env` 文件并配置以下变量：
+复制 `.env.example` 文件为 `.env`，并根据实际情况填写相关配置：
 
-```env
-# LLM API 配置
-API_KEY="your_openai_api_key"
-BASE_URL="https://api.openai.com/v1"
-MODEL_NAME="gpt-3.5-turbo"
-
-# Jina Reader API
-JINA_API_KEY="your_jina_api_key"
-
-# 飞书 Webhook
-FEISHU_WEBHOOK_URL="your_feishu_webhook_url"
-FEISHU_SECRET="your_feishu_secret"
-
-# 飞书开放平台（自建应用）：用于 Drive upload_all 文件上传
-FEISHU_APP_ID="cli_xxx"
-FEISHU_APP_SECRET="xxx"
-
-# Drive 上传目标文件夹 token（parent_node）
-FEISHU_DRIVE_PARENT_NODE="LVrTfA0lOlFRPDdKge3c1qBLn5e"
-
-# 生成可点击链接用的前缀（不同租户可能不同；如果不确定，可先留空，仅上传不推送）
-FEISHU_DRIVE_BASE_URL="https://your-tenant.feishu.cn/drive/file"
+```bash
+cp .env.example .env
 ```
+
+主要配置项包括：
+- **LLM API**: `API_KEY`, `BASE_URL`, `MODEL_NAME` (支持 OpenAI 格式接口，如 DeepSeek)
+- **Jina Reader**: `JINA_API_KEY`
+- **飞书机器人**: `FEISHU_WEBHOOK_URL`, `FEISHU_SECRET`
+- **飞书开放平台**: `FEISHU_APP_ID`, `FEISHU_APP_SECRET` (用于上传文件到云空间)
+- **飞书云文档**: `FEISHU_DRIVE_PARENT_NODE`, `FEISHU_DRIVE_BASE_URL`
 
 ### 2. 安装依赖
 
