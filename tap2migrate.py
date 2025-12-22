@@ -2,7 +2,7 @@
 
 一次性迁移脚本：
 1) 将已存在的 HTML 报告批量转为 Markdown 文件
-2) 使用 Drive v1 `upload_all` 将 Markdown 文件上传至云空间指定目录
+2) 将 Markdown 内容写入飞书 Docx 文档（create docx -> convert -> insert blocks）
 
 也支持：直接把处理后的 JSON（论文列表）渲染成 Markdown 并上传。
 
@@ -17,13 +17,17 @@
 
 环境变量：
     FEISHU_APP_ID / FEISHU_APP_SECRET 必填
-    （可选）FEISHU_DRIVE_PARENT_NODE 可作为默认 folder token
+    （可选）FEISHU_DOCX_FOLDER_TOKEN 可作为默认 docx folder token
+    （可选）FEISHU_DOCX_DOCUMENT_ID 若写入已有文档，可设置此值跳过创建
+    FEISHU_WEBHOOK_URL / FEISHU_SECRET 用于发送飞书卡片（可选；不配则不发送）
+    （可选）FEISHU_DOCX_BASE_URL 用于拼接 docx 文档链接
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -31,6 +35,7 @@ from dotenv import load_dotenv
 from loguru import logger
 from markdownify import markdownify as md
 
+from call_feishu_card import FeishuCardNotifier
 from feishu_drive_upload import FeishuDriveUploadError, upload_file
 from md_report import papers_to_markdown
 
@@ -39,8 +44,29 @@ load_dotenv()
 
 
 def html_to_markdown(html_text: str) -> str:
-    # markdownify 会做较通用的 HTML->MD 转换，足够用于历史迁移
-    return md(html_text, heading_style="ATX")
+    # markdownify 会做较通用的 HTML->MD 转换。
+    # 为了让 docx.convert 更稳定：使用 ATX 标题，尽量输出“干净”的 Markdown。
+    markdown_text = md(html_text, heading_style="ATX")
+    return markdown_text.strip() + "\n"
+
+
+def _build_docx_url(document_id: str) -> str:
+    base = (
+        (os.getenv("FEISHU_DOCX_BASE_URL") or "https://ai.feishu.cn/docx")
+        .strip()
+        .rstrip("/")
+    )
+    return f"{base}/{document_id}"
+
+
+def _maybe_send_card(*, date: str, paper_count: int, docx_url: str) -> None:
+    # 若未配置 webhook，则静默跳过
+    if not (os.getenv("FEISHU_WEBHOOK_URL") or "").strip():
+        return
+    notifier = FeishuCardNotifier()
+    notifier.send_daily_report_card(
+        date=date, paper_count=paper_count, file_url=docx_url
+    )
 
 
 def upload_markdown_file(*, md_path: Path, parent_node: Optional[str]) -> Optional[str]:
@@ -51,7 +77,7 @@ def upload_markdown_file(*, md_path: Path, parent_node: Optional[str]) -> Option
             parent_node=parent_node,
         )
     except FeishuDriveUploadError as e:
-        logger.exception(f"upload_all 上传失败: {md_path.name}: {e}")
+        logger.exception(f"写入 Docx 失败: {md_path.name}: {e}")
         return None
 
 
@@ -75,9 +101,11 @@ def cmd_html(args: argparse.Namespace) -> int:
         md_path = out_dir / (html_path.stem + ".md")
         md_path.write_text(markdown_text, encoding="utf-8")
 
-        file_token = upload_markdown_file(md_path=md_path, parent_node=folder_token)
-        if file_token:
-            logger.success(f"上传成功 file_token={file_token}")
+        document_id = upload_markdown_file(md_path=md_path, parent_node=folder_token)
+        if document_id:
+            docx_url = _build_docx_url(document_id)
+            logger.success(f"写入成功 document_id={document_id} url={docx_url}")
+            _maybe_send_card(date=html_path.stem, paper_count=0, docx_url=docx_url)
 
     return 0
 
@@ -101,9 +129,11 @@ def cmd_json(args: argparse.Namespace) -> int:
         md_path = Path.cwd() / f"{args.date}.md"
         md_path.write_text(markdown_text, encoding="utf-8")
 
-    file_token = upload_markdown_file(md_path=md_path, parent_node=args.folder_token)
-    if file_token:
-        logger.success(f"上传成功 file_token={file_token}")
+    document_id = upload_markdown_file(md_path=md_path, parent_node=args.folder_token)
+    if document_id:
+        docx_url = _build_docx_url(document_id)
+        logger.success(f"写入成功 document_id={document_id} url={docx_url}")
+        _maybe_send_card(date=args.date, paper_count=len(papers), docx_url=docx_url)
     return 0
 
 

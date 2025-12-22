@@ -12,12 +12,20 @@ def _safe_join(items: List[str]) -> str:
     return ", ".join([i for i in items if i])
 
 
+def _escape_html(text: str) -> str:
+    return (
+        (text or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#39;")
+    )
+
+
 def papers_to_markdown(date_str: str, papers: List[Dict[str, Any]]) -> str:
     lines: List[str] = []
-    lines.append(f"# ArXiv AI Daily Report ({date_str})")
-    lines.append("")
-    lines.append(f"- 论文数：{len(papers)}")
-    lines.append("")
+    # 按照要求，直接以分割线开始，不再保留顶部的总标题和论文数
     lines.append("---")
 
     for idx, p in enumerate(papers, start=1):
@@ -29,7 +37,6 @@ def papers_to_markdown(date_str: str, papers: List[Dict[str, Any]]) -> str:
         recommendation = p.get("recommendation") or "一般推荐"
         keywords = p.get("keywords") or []
         trans_abs = (p.get("trans_abs") or "").strip()
-        compressed = (p.get("compressed") or "").strip()
 
         lines.append(f"## {idx}. {title}")
         lines.append("")
@@ -43,12 +50,8 @@ def papers_to_markdown(date_str: str, papers: List[Dict[str, Any]]) -> str:
             lines.append(f"- Abstract：{abs_url}")
         if pdf_url:
             lines.append(f"- PDF：{pdf_url}")
+
         lines.append("")
-        if compressed:
-            lines.append("**中文压缩**")
-            lines.append("")
-            lines.append(compressed)
-            lines.append("")
         if trans_abs:
             lines.append("**中文摘要**")
             lines.append("")
