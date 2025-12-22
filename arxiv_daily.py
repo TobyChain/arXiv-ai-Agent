@@ -7,8 +7,9 @@ from dotenv import load_dotenv
 from loguru import logger
 
 # 导入自定义工具模块
+from dataclasses import dataclass, field
+
 from call_llm import LLMClient
-from call_feishu_card import FeishuCardNotifier
 from call_jina import JinaReaderClient
 from md_report import papers_to_markdown
 
@@ -29,27 +30,29 @@ TARGET_DATE_STR = CURRENT_DATE.strftime("%a, %d %b %Y")
 MAX_PAPERS = int(os.getenv("MAX_PAPERS", "200"))
 OUTPUT_DIR = os.getenv("OUTPUT_DIR")
 
-FEISHU_DRIVE_PARENT_NODE = os.getenv("FEISHU_DRIVE_PARENT_NODE")
-FEISHU_DRIVE_BASE_URL = os.getenv("FEISHU_DRIVE_BASE_URL")
+FEISHU_DOCX_FOLDER_TOKEN = os.getenv("FEISHU_DOCX_FOLDER_TOKEN")
+FEISHU_DOCX_BASE_URL = os.getenv("FEISHU_DOCX_BASE_URL")
 # ===========================================
 
 
-def _build_drive_file_url(*, file_token: str) -> Optional[str]:
-    # 优先使用环境变量中的基础 URL，若无则使用飞书云空间默认文件路径格式
-    base = (FEISHU_DRIVE_BASE_URL or "https://ai.feishu.cn/file").strip().rstrip("/")
-    return f"{base}/{file_token}"
+def _build_docx_url(*, document_id: str) -> Optional[str]:
+    # 文档访问 URL 可能因飞书部署/租户域名而不同，因此允许通过环境变量覆盖
+    base = (FEISHU_DOCX_BASE_URL or "https://ai.feishu.cn/docx").strip().rstrip("/")
+    return f"{base}/{document_id}"
 
 
 def upload_markdown_via_drive(*, md_path: str, file_name: str) -> Optional[str]:
-    """使用 drive.v1.file.upload_all 上传 Markdown 文件到飞书云空间。"""
+    """兼容旧函数名：实际写入飞书 Docx 文档并返回文档链接。"""
 
     if upload_file is None:
         logger.error("缺少模块 feishu_drive_upload（或依赖 lark-oapi），无法上传")
         return None
 
-    parent_node = (FEISHU_DRIVE_PARENT_NODE or "").strip()
-    if not parent_node:
-        logger.error("缺少环境变量 FEISHU_DRIVE_PARENT_NODE")
+    folder_token = (FEISHU_DOCX_FOLDER_TOKEN or "").strip()
+    if not folder_token and not (os.getenv("FEISHU_DOCX_DOCUMENT_ID") or "").strip():
+        logger.error(
+            "缺少环境变量 FEISHU_DOCX_FOLDER_TOKEN（或 FEISHU_DOCX_DOCUMENT_ID）"
+        )
         return None
 
     if not os.path.exists(md_path):
@@ -57,23 +60,23 @@ def upload_markdown_via_drive(*, md_path: str, file_name: str) -> Optional[str]:
         return None
 
     try:
-        file_token = upload_file(
+        document_id = upload_file(
             file_path=md_path,
             file_name=file_name,
-            parent_node=parent_node,
+            parent_node=folder_token,
         )
-        return _build_drive_file_url(file_token=file_token)
+        return _build_docx_url(document_id=document_id)
     except FeishuDriveUploadError as e:
-        logger.exception(f"上传 md 到飞书 Drive 失败: {e}")
+        logger.exception(f"写入 md 到飞书 Docx 失败: {e}")
         return None
 
 
+@dataclass
 class ArxivPaperProcessor:
-    """ArXiv 论文处理器"""
+    """ArXiv 论文处理器（dataclass 版本）"""
 
-    def __init__(self):
-        self.llm_client = LLMClient()
-        self.jina_client = JinaReaderClient()
+    llm_client: LLMClient = field(default_factory=LLMClient)
+    jina_client: JinaReaderClient = field(default_factory=JinaReaderClient)
 
     def fetch_jina_data(self, subject: str = "cs.AI"):
         """调用 Jina Reader API 获取 ArXiv 列表数据"""
@@ -101,15 +104,18 @@ class ArxivPaperProcessor:
         title = paper.title
         author_text = " and ".join([a.name for a in paper.authors])
         url = paper.entry_id
+        doi = paper.doi
         eprint = paper.get_short_id()
 
+        doi_line = f"  doi={{{doi}}},\n" if doi else ""
         bibtex = (
             f"@article{{{eprint},\n"
             f"  title={{{title}}},\n"
             f"  author={{{author_text}}},\n"
             f"  journal={{arXiv preprint arXiv:{eprint}}},\n"
             f"  year={{{year}}},\n"
-            f"  url={{{url}}}\n"
+            f"  url={{{url}}},\n"
+            f"{doi_line}"
             f"}}"
         )
         return bibtex
@@ -128,10 +134,17 @@ def save_markdown(markdown_text: str, *, output_dir: str, filename: str) -> str:
     return os.path.abspath(path)
 
 
+def save_text(text: str, *, output_dir: str, filename: str) -> str:
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+    return os.path.abspath(path)
+
+
 def main():
     # 1. 初始化
     processor = ArxivPaperProcessor()
-    card_notifier = FeishuCardNotifier()
 
     # 2. 获取 Jina 数据
     logger.info(f"正在获取 ArXiv 主题: {ARXIV_SUBJECT}")
@@ -179,6 +192,8 @@ def main():
                 "sub_topic": analysis.get("sub_topic", "未知"),
                 "recommendation": analysis.get("recommendation", "一般推荐"),
                 "bibtex": bib,
+                "doi": paper.doi,
+                "doi_url": f"https://doi.org/{paper.doi}" if paper.doi else None,
                 "published": paper.published.strftime("%Y-%m-%d"),
                 "summary": paper.summary,
             }
@@ -228,7 +243,7 @@ def main():
         with open(index_path, "w", encoding="utf-8") as f:
             json.dump(index_data, f, ensure_ascii=False, indent=2)
 
-    # 生成 Markdown（日报产物）
+    # 生成 Markdown（本地留存）
     markdown_text = papers_to_markdown(current_date_str, processed_papers)
     md_output_dir = OUTPUT_DIR or output_dir
     md_filename = f"{current_date_str}.md"
@@ -237,17 +252,14 @@ def main():
     )
     logger.success(f"Markdown 已保存: {md_path}")
 
+    # 强制 docx convert 走 Markdown（以 md 作为文档块转换源）
+    os.environ["FEISHU_DOCX_CONTENT_TYPE"] = "markdown"
     file_url = upload_markdown_via_drive(md_path=md_path, file_name=md_filename)
     if not file_url:
-        logger.error("Markdown 上传失败，跳过飞书推送")
+        logger.error("写入飞书 Docx 失败，跳过飞书推送")
         return
 
-    logger.success(f"Markdown 上传成功: {file_url}")
-    card_notifier.send_daily_report_card(
-        date=TARGET_DATE_STR,
-        paper_count=len(processed_papers),
-        file_url=file_url,
-    )
+    logger.success(f"飞书 Docx 写入成功: {file_url}")
 
 
 if __name__ == "__main__":
