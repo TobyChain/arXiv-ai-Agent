@@ -2,6 +2,7 @@ import os
 import json
 import arxiv
 import datetime
+from typing import Optional
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -9,19 +10,62 @@ from loguru import logger
 from call_llm import LLMClient
 from call_feishu_card import FeishuCardNotifier
 from call_jina import JinaReaderClient
+from md_report import papers_to_markdown
+
+try:
+    from feishu_drive_upload import FeishuDriveUploadError, upload_file
+except ModuleNotFoundError:  # pragma: no cover
+    FeishuDriveUploadError = Exception  # type: ignore[assignment]
+    upload_file = None  # type: ignore[assignment]
 
 # 加载环境变量
 load_dotenv()
 
 # ================= 配置区域 =================
-WEB_SERVER_URL = os.getenv("WEB_SERVER_URL", "http://localhost:8000")
-ARXIV_SUBJECT = os.getenv("ARXIV_SUBJECT", "cs.AI")  # ArXiv 主题代码
-CURRENT_DATE = datetime.datetime.now() - datetime.timedelta(
-    days=1
-)  # 默认获取前一天的论文
+ARXIV_SUBJECT = os.getenv("ARXIV_SUBJECT", "cs.AI")
+DATE_OFFSET_DAYS = int(os.getenv("ARXIV_DATE_OFFSET_DAYS", "1"))
+CURRENT_DATE = datetime.datetime.now() - datetime.timedelta(days=DATE_OFFSET_DAYS)
 TARGET_DATE_STR = CURRENT_DATE.strftime("%a, %d %b %Y")
-MAX_PAPERS = 200
+MAX_PAPERS = int(os.getenv("MAX_PAPERS", "200"))
+OUTPUT_DIR = os.getenv("OUTPUT_DIR")
+
+FEISHU_DRIVE_PARENT_NODE = os.getenv("FEISHU_DRIVE_PARENT_NODE")
+FEISHU_DRIVE_BASE_URL = os.getenv("FEISHU_DRIVE_BASE_URL")
 # ===========================================
+
+
+def _build_drive_file_url(*, file_token: str) -> Optional[str]:
+    # 优先使用环境变量中的基础 URL，若无则使用飞书云空间默认文件路径格式
+    base = (FEISHU_DRIVE_BASE_URL or "https://ai.feishu.cn/file").strip().rstrip("/")
+    return f"{base}/{file_token}"
+
+
+def upload_markdown_via_drive(*, md_path: str, file_name: str) -> Optional[str]:
+    """使用 drive.v1.file.upload_all 上传 Markdown 文件到飞书云空间。"""
+
+    if upload_file is None:
+        logger.error("缺少模块 feishu_drive_upload（或依赖 lark-oapi），无法上传")
+        return None
+
+    parent_node = (FEISHU_DRIVE_PARENT_NODE or "").strip()
+    if not parent_node:
+        logger.error("缺少环境变量 FEISHU_DRIVE_PARENT_NODE")
+        return None
+
+    if not os.path.exists(md_path):
+        logger.error(f"待上传文件不存在: {md_path}")
+        return None
+
+    try:
+        file_token = upload_file(
+            file_path=md_path,
+            file_name=file_name,
+            parent_node=parent_node,
+        )
+        return _build_drive_file_url(file_token=file_token)
+    except FeishuDriveUploadError as e:
+        logger.exception(f"上传 md 到飞书 Drive 失败: {e}")
+        return None
 
 
 class ArxivPaperProcessor:
@@ -32,24 +76,15 @@ class ArxivPaperProcessor:
         self.jina_client = JinaReaderClient()
 
     def fetch_jina_data(self, subject: str = "cs.AI"):
-        """
-        调用 Jina Reader API 获取 ArXiv 列表数据
-
-        Args:
-            subject: ArXiv 主题代码
-        """
+        """调用 Jina Reader API 获取 ArXiv 列表数据"""
         return self.jina_client.fetch_arxiv_list(subject=subject, skip=0, show=250)
 
     def parse_jina_response(self, json_data, target_date):
-        """
-        从 Jina Reader 的 JSON 响应中提取指定日期的 ArXiv ID
-        """
+        """从 Jina Reader 的 JSON 响应中提取指定日期的 ArXiv ID"""
         return self.jina_client.parse_arxiv_ids(json_data, target_date)
 
     def fetch_arxiv_metadata(self, arxiv_ids):
-        """
-        使用 arxiv 库批量获取元数据
-        """
+        """使用 arxiv 库批量获取元数据"""
         if not arxiv_ids:
             return []
         logger.info("正在从 ArXiv 获取元数据...")
@@ -61,9 +96,7 @@ class ArxivPaperProcessor:
         return results
 
     def generate_bibtex(self, paper):
-        """
-        根据 arxiv 元数据生成 BibTeX
-        """
+        """根据 arxiv 元数据生成 BibTeX"""
         year = paper.published.year
         title = paper.title
         author_text = " and ".join([a.name for a in paper.authors])
@@ -82,126 +115,17 @@ class ArxivPaperProcessor:
         return bibtex
 
     def translate_abstract(self, title, abstract):
-        """
-        调用 LLM 翻译摘要并分析
-        """
+        """调用 LLM 翻译摘要并分析"""
         combined_text = f"Title: {title}\nAbstract: {abstract}"
         return self.llm_client.translate_abstract(combined_text, domain="AI")
 
 
-class HTMLReportGenerator:
-    def generate_html(self, papers_data, date_str, output_filename):
-        html_content = f"""
-        <!DOCTYPE html>
-        <html lang="zh-CN">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>ArXiv AI Daily Report - {date_str}</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-            <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-            <script>
-                tailwind.config = {{
-                    theme: {{
-                        extend: {{
-                            colors: {{
-                                primary: '#2563eb',
-                                secondary: '#475569',
-                            }}
-                        }}
-                    }}
-                }}
-            </script>
-        </head>
-        <body class="bg-gray-50 min-h-screen font-sans text-gray-800">
-            <div class="max-w-4xl mx-auto px-4 py-8">
-                <!-- Header -->
-                <header class="text-center mb-12">
-                    <div class="inline-block p-3 rounded-full bg-blue-100 text-blue-600 mb-4">
-                        <i class="fas fa-robot text-3xl"></i>
-                    </div>
-                    <h1 class="text-4xl font-bold text-gray-900 mb-2">ArXiv AI Daily Report</h1>
-                    <p class="text-gray-500 text-lg">{date_str}</p>
-                </header>
-
-                <!-- Papers List -->
-                <div class="space-y-8">
-        """
-
-        for item in papers_data:
-            keywords_html = "".join(
-                [
-                    f'<span class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">#{kw}</span>'
-                    for kw in item["keywords"]
-                ]
-            )
-            html_content += f"""
-            <article class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow duration-300">
-                <div class="p-6">
-                    <h2 class="text-xl font-bold text-gray-900 mb-2 leading-tight hover:text-blue-600 transition-colors">
-                        <a href="{item["abs_url"]}" target="_blank">{item["title"]}</a>
-                    </h2>
-                    
-                    <div class="flex flex-wrap gap-2 mb-4">
-                        {keywords_html}
-                    </div>
-
-                    <div class="flex flex-wrap gap-3 mb-6">
-                        <a href="{item["pdf_url"]}" target="_blank" 
-                           class="inline-flex items-center px-3 py-1.5 rounded-md bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 transition-colors">
-                            <i class="fas fa-file-pdf mr-2"></i> PDF
-                        </a>
-                        <a href="{item["abs_url"]}" target="_blank"
-                           class="inline-flex items-center px-3 py-1.5 rounded-md bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors">
-                            <i class="fas fa-external-link-alt mr-2"></i> Abstract
-                        </a>
-                        <span class="inline-flex items-center px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 text-sm font-medium">
-                            <i class="fas fa-tag mr-2"></i> {item["sub_topic"]}
-                        </span>
-                        <span class="inline-flex items-center px-3 py-1.5 rounded-md bg-purple-50 text-purple-600 text-sm font-medium">
-                            <i class="fas fa-star mr-2"></i> {item["recommendation"]}
-                        </span>
-                    </div>
-
-                    <div class="bg-blue-50 rounded-lg p-4 mb-4 border-l-4 border-blue-500">
-                        <h3 class="text-sm font-bold text-blue-900 mb-2 flex items-center">
-                            <i class="fas fa-language mr-2"></i> 中文摘要
-                        </h3>
-                        <p class="text-gray-700 text-sm leading-relaxed text-justify">
-                            {item["trans_abs"]}
-                        </p>
-                    </div>
-
-                    <details class="group">
-                        <summary class="flex items-center cursor-pointer text-sm text-gray-500 hover:text-gray-700 select-none">
-                            <i class="fas fa-code mr-2 transition-transform group-open:rotate-90"></i>
-                            <span>BibTeX</span>
-                        </summary>
-                        <div class="mt-3 bg-gray-900 rounded-lg p-4 overflow-x-auto">
-                            <pre class="text-xs text-gray-300 font-mono whitespace-pre-wrap">{item["bibtex"]}</pre>
-                        </div>
-                    </details>
-                </div>
-            </article>
-            """
-
-        html_content += """
-                </div>
-
-                <!-- Footer -->
-                <footer class="text-center mt-12 text-gray-400 text-sm pb-8">
-                    <p>Generated by ArXiv AI Agent • Powered by DeepSeek & Jina AI</p>
-                </footer>
-            </div>
-        </body>
-        </html>
-        """
-
-        with open(output_filename, "w", encoding="utf-8") as f:
-            f.write(html_content)
-
-        logger.success(f"HTML 报告已生成: {output_filename}")
-        return os.path.abspath(output_filename)
+def save_markdown(markdown_text: str, *, output_dir: str, filename: str) -> str:
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(markdown_text)
+    return os.path.abspath(path)
 
 
 def main():
@@ -304,28 +228,25 @@ def main():
         with open(index_path, "w", encoding="utf-8") as f:
             json.dump(index_data, f, ensure_ascii=False, indent=2)
 
-    # 生成 HTML 报告
-    html_gen = HTMLReportGenerator()
-    filename = f"Arxiv_Report_{TARGET_DATE_STR.replace(' ', '_').replace(',', '')}.html"
-    output_path = os.path.join(output_dir, filename)
+    # 生成 Markdown（日报产物）
+    markdown_text = papers_to_markdown(current_date_str, processed_papers)
+    md_output_dir = OUTPUT_DIR or output_dir
+    md_filename = f"{current_date_str}.md"
+    md_path = save_markdown(
+        markdown_text, output_dir=md_output_dir, filename=md_filename
+    )
+    logger.success(f"Markdown 已保存: {md_path}")
 
-    # 直接使用 processed_papers 生成 HTML (不再需要转换作者格式)
-    html_gen.generate_html(processed_papers, TARGET_DATE_STR, output_path)
+    file_url = upload_markdown_via_drive(md_path=md_path, file_name=md_filename)
+    if not file_url:
+        logger.error("Markdown 上传失败，跳过飞书推送")
+        return
 
-    # 6. 发送飞书通知（使用卡片格式）
-    # 构建可访问的 HTTP URL
-    html_filename = os.path.basename(output_path)
-    report_url = f"{WEB_SERVER_URL}/database/{html_filename}"
-
-    # 同时提供 Web 界面的链接
-    web_interface_url = f"{WEB_SERVER_URL}/?date={current_date_str}"
-
-    # 发送交互式卡片消息
+    logger.success(f"Markdown 上传成功: {file_url}")
     card_notifier.send_daily_report_card(
         date=TARGET_DATE_STR,
         paper_count=len(processed_papers),
-        html_url=report_url,
-        web_url=web_interface_url,
+        file_url=file_url,
     )
 
 

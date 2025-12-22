@@ -32,7 +32,10 @@ class FeishuCardNotifier:
         return sign
 
     def send_daily_report_card(
-        self, date: str, paper_count: int, html_url: str, web_url: str
+        self,
+        date: str,
+        paper_count: int,
+        file_url: str,
     ) -> bool:
         """
         发送每日报告卡片消息
@@ -40,8 +43,7 @@ class FeishuCardNotifier:
         Args:
             date: 报告日期
             paper_count: 论文数量
-            html_url: HTML 报告链接
-            web_url: Web 界面链接
+            file_url: 飞书云空间文件链接（Markdown）
 
         Returns:
             是否发送成功
@@ -49,58 +51,42 @@ class FeishuCardNotifier:
         timestamp = str(int(time.time()))
         sign = self.gen_sign(timestamp, self.secret)
 
-        # 构建交互式卡片
+        actions = [
+            {
+                "tag": "button",
+                "text": {"tag": "plain_text", "content": "查看 Markdown 报告"},
+                "type": "primary",
+                "url": file_url,
+            }
+        ]
+
         card = {
             "config": {"wide_screen_mode": True},
             "header": {
+                "title": {"tag": "plain_text", "content": "ArXiv AI Daily Report"},
                 "template": "blue",
-                "title": {"content": "🤖 ArXiv AI Daily Report", "tag": "plain_text"},
             },
             "elements": [
                 {
                     "tag": "div",
-                    "text": {"content": f"**📅 日期**\n{date}", "tag": "lark_md"},
+                    "text": {"content": f"**📅 报告日期**\n{date}", "tag": "lark_md"},
                 },
                 {
                     "tag": "div",
                     "text": {
-                        "content": f"**📚 今日更新论文**\n{paper_count} 篇",
+                        "content": f"**📚 今日论文数量**\n{paper_count} 篇",
+                        "tag": "lark_md",
+                    },
+                },
+                {
+                    "tag": "div",
+                    "text": {
+                        "content": "💡 点击下方按钮查看详细的论文翻译与分析报告（Markdown 格式）。",
                         "tag": "lark_md",
                     },
                 },
                 {"tag": "hr"},
-                {
-                    "tag": "action",
-                    "actions": [
-                        {
-                            "tag": "button",
-                            "text": {
-                                "content": "📄 查看 HTML 报告",
-                                "tag": "plain_text",
-                            },
-                            "url": html_url,
-                            "type": "primary",
-                        },
-                        {
-                            "tag": "button",
-                            "text": {
-                                "content": "🌐 打开 Web 界面",
-                                "tag": "plain_text",
-                            },
-                            "url": web_url,
-                            "type": "default",
-                        },
-                    ],
-                },
-                {
-                    "tag": "note",
-                    "elements": [
-                        {
-                            "tag": "plain_text",
-                            "content": "💡 提示：请确保 Web 服务器已启动 (运行 ./run_server.sh)",
-                        }
-                    ],
-                },
+                {"tag": "action", "actions": actions},
             ],
         }
 
@@ -126,7 +112,11 @@ class FeishuCardNotifier:
             return False
 
 
-def send_daily_report(date: str, paper_count: int, html_url: str, web_url: str) -> bool:
+def send_daily_report(
+    date: str,
+    paper_count: int,
+    file_url: str,
+) -> bool:
     """快捷发送每日报告"""
     notifier = FeishuCardNotifier()
-    return notifier.send_daily_report_card(date, paper_count, html_url, web_url)
+    return notifier.send_daily_report_card(date, paper_count, file_url)
