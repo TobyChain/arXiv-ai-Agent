@@ -482,9 +482,7 @@ def upload_markdown_to_docx(
     content_chunks = [content]
     if content_type == "markdown":
         content_chunks = _split_markdown_by_papers(content, batch_size=10)
-        logger.info(
-            f"Markdown 内容已拆分为 {len(content_chunks)} 个分片（每片约 10 篇论文）"
-        )
+        logger.info(f"Markdown 内容已拆分为 {len(content_chunks)} 个分片，根据---拆分")
 
     backoff = retry_backoff_seconds
     last_error: Optional[str] = None

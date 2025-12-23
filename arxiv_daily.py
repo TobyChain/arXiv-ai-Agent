@@ -9,15 +9,10 @@ from loguru import logger
 # 导入自定义工具模块
 from dataclasses import dataclass, field
 
-from call_llm import LLMClient
-from call_jina import JinaReaderClient
-from md_report import papers_to_markdown
-
-try:
-    from feishu_drive_upload import FeishuDriveUploadError, upload_file
-except ModuleNotFoundError:  # pragma: no cover
-    FeishuDriveUploadError = Exception  # type: ignore[assignment]
-    upload_file = None  # type: ignore[assignment]
+from tools.call_llm import LLMClient
+from tools.call_jina import JinaReaderClient
+from tools.report2md import papers_to_markdown
+from tools.upload_md_feishu import FeishuDriveUploadError, upload_file
 
 # 加载环境变量
 load_dotenv()

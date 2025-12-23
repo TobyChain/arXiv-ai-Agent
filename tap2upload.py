@@ -23,7 +23,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from loguru import logger
 
-from feishu_drive_upload import FeishuDriveUploadError, upload_file
+from tools.upload_md_feishu import FeishuDriveUploadError, upload_file
 
 
 # 加载环境变量

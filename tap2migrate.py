@@ -35,9 +35,9 @@ from dotenv import load_dotenv
 from loguru import logger
 from markdownify import markdownify as md
 
-from call_feishu_card import FeishuCardNotifier
-from feishu_drive_upload import FeishuDriveUploadError, upload_file
-from md_report import papers_to_markdown
+from tools.call_feishu_card import FeishuNotifier
+from tools.upload_md_feishu import FeishuDriveUploadError, upload_file
+from tools.report2md import papers_to_markdown
 
 # 加载环境变量
 load_dotenv()
@@ -63,10 +63,8 @@ def _maybe_send_card(*, date: str, paper_count: int, docx_url: str) -> None:
     # 若未配置 webhook，则静默跳过
     if not (os.getenv("FEISHU_WEBHOOK_URL") or "").strip():
         return
-    notifier = FeishuCardNotifier()
-    notifier.send_daily_report_card(
-        date=date, paper_count=paper_count, file_url=docx_url
-    )
+    notifier = FeishuNotifier()
+    notifier.send_daily_report(date=date, paper_count=paper_count, file_url=docx_url)
 
 
 def upload_markdown_file(*, md_path: Path, parent_node: Optional[str]) -> Optional[str]:
