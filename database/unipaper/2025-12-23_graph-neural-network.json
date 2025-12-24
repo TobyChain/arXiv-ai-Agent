@@ -1,0 +1,64 @@
+[
+  {
+    "title": "Credal Graph Neural Networks",
+    "authors": [
+      "Davide Bacciu"
+    ],
+    "abs_url": "http://arxiv.org/abs/2512.02722",
+    "pdf_url": "https://arxiv.org/pdf/2512.02722",
+    "trans_abs": "",
+    "keywords": [],
+    "sub_topic": "综合",
+    "recommendation": "一般推荐",
+    "bibtex": "@article{251202722,\n  title={Credal Graph Neural Networks},\n  author={Davide Bacciu},\n  year={2025},\n  url={http://arxiv.org/abs/2512.02722},\n  doi={10.48550/arxiv.2512.02722},\n}",
+    "doi": "10.48550/arxiv.2512.02722",
+    "doi_url": "https://doi.org/10.48550/arxiv.2512.02722",
+    "published": "2025-12-02",
+    "summary": "Uncertainty quantification is essential for deploying reliable Graph Neural Networks (GNNs), where existing approaches primarily rely on Bayesian inference or ensembles. In this paper, we introduce the first credal graph neural networks (CGNNs), which extend credal learning to the graph domain by training GNNs to output set-valued predictions in the form of credal sets. To account for the distinctive nature of message passing in GNNs, we develop a complementary approach to credal learning that leverages different aspects of layer-wise information propagation. We assess our approach on uncertainty quantification in node classification under out-of-distribution conditions. Our analysis highlights the critical role of the graph homophily assumption in shaping the effectiveness of uncertainty estimates. Extensive experiments demonstrate that CGNNs deliver more reliable representations of epistemic uncertainty and achieve state-of-the-art performance under distributional shift on heterophilic graphs.",
+    "source": "openalex",
+    "openalex_id": "https://openalex.org/W4417009319"
+  },
+  {
+    "title": "Graph Neural Networks for Interferometer Simulations",
+    "authors": [
+      "S. Kannan",
+      "P. Goodarzi",
+      "Evangelos E. Papalexakis",
+      "Jonathan W. Richardson"
+    ],
+    "abs_url": "http://arxiv.org/abs/2512.16051",
+    "pdf_url": "https://arxiv.org/pdf/2512.16051",
+    "trans_abs": "",
+    "keywords": [],
+    "sub_topic": "综合",
+    "recommendation": "一般推荐",
+    "bibtex": "@article{251216051,\n  title={Graph Neural Networks for Interferometer Simulations},\n  author={S. Kannan and P. Goodarzi and Evangelos E. Papalexakis and Jonathan W. Richardson},\n  year={2025},\n  url={http://arxiv.org/abs/2512.16051},\n  doi={10.48550/arxiv.2512.16051},\n}",
+    "doi": "10.48550/arxiv.2512.16051",
+    "doi_url": "https://doi.org/10.48550/arxiv.2512.16051",
+    "published": "2025-12-18",
+    "summary": "In recent years, graph neural networks (GNNs) have shown tremendous promise in solving problems in high energy physics, materials science, and fluid dynamics. In this work, we introduce a new application for GNNs in the physical sciences: instrumentation design. As a case study, we apply GNNs to simulate models of the Laser Interferometer Gravitational-Wave Observatory (LIGO) and show that they are capable of accurately capturing the complex optical physics at play, while achieving runtimes 815 times faster than state of the art simulation packages. We discuss the unique challenges this problem provides for machine learning models. In addition, we provide a dataset of high-fidelity optical physics simulations for three interferometer topologies, which can be used as a benchmarking suite for future work in this direction.",
+    "source": "openalex",
+    "openalex_id": "https://openalex.org/W4417529673"
+  },
+  {
+    "title": "Bounded Graph Clustering with Graph Neural Networks",
+    "authors": [
+      "Kibidi Neocosmos",
+      "Diego Baptista",
+      "Nicole Ludwig"
+    ],
+    "abs_url": "http://arxiv.org/abs/2512.05623",
+    "pdf_url": "https://arxiv.org/pdf/2512.05623",
+    "trans_abs": "",
+    "keywords": [],
+    "sub_topic": "综合",
+    "recommendation": "一般推荐",
+    "bibtex": "@article{251205623,\n  title={Bounded Graph Clustering with Graph Neural Networks},\n  author={Kibidi Neocosmos and Diego Baptista and Nicole Ludwig},\n  year={2025},\n  url={http://arxiv.org/abs/2512.05623},\n  doi={10.48550/arxiv.2512.05623},\n}",
+    "doi": "10.48550/arxiv.2512.05623",
+    "doi_url": "https://doi.org/10.48550/arxiv.2512.05623",
+    "published": "2025-12-05",
+    "summary": "In community detection, many methods require the user to specify the number of clusters in advance since an exhaustive search over all possible values is computationally infeasible. While some classical algorithms can infer this number directly from the data, this is typically not the case for graph neural networks (GNNs): even when a desired number of clusters is specified, standard GNN-based methods often fail to return the exact number due to the way they are designed. In this work, we address this limitation by introducing a flexible and principled way to control the number of communities discovered by GNNs. Rather than assuming the true number of clusters is known, we propose a framework that allows the user to specify a plausible range and enforce these bounds during training. However, if the user wants an exact number of clusters, it may also be specified and reliably returned.",
+    "source": "openalex",
+    "openalex_id": "https://openalex.org/W4417143338"
+  }
+]

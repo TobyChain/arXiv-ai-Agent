@@ -13,6 +13,22 @@
 - ☁️ **飞书云空间上传**：使用 Drive v1 `upload_all` 上传 Markdown 文件
 - 📱 **飞书推送**：通过群机器人卡片推送可点击链接
 
+## Uni-paper（跨学科检索脚手架）
+
+除了 arXiv 日报，本仓库还提供一个“最小版 Uni-paper”脚本：基于 OpenAlex 做跨学科关键词+日期检索，并可选用 Unpaywall 补全合法 OA PDF、Crossref 生成 BibTeX、LLM 生成中文摘要/关键词/推荐。
+
+运行示例（不调用 LLM，更快）：
+
+```bash
+uv run python arxiv-ai-agent/unipaper_search.py --query "graph neural network" --from-date 2025-12-01 --to-date 2025-12-23 --max 50 --no-llm
+```
+
+环境变量（可选）：
+
+- **OPENALEX_MAILTO**：OpenAlex 建议带上 mailto
+- **UNPAYWALL_EMAIL**：启用 Unpaywall OA PDF 补全
+- **CROSSREF_MAILTO**：Crossref 建议带上 mailto
+
 ## 项目结构
 
 ```

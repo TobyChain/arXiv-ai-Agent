@@ -30,8 +30,8 @@ from tools.upload_md_feishu import FeishuDriveUploadError, upload_file
 load_dotenv()
 
 # ================= 配置区域 =================
-REPORT_DATE = "2025-12-16"
-MD_FILE_PATH = f"./database_md/{REPORT_DATE}.md"
+REPORT_DATE = "2025-12-23"
+MD_FILE_PATH = f"./database/{REPORT_DATE}.md"
 # ===========================================
 
 
